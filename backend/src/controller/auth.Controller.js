@@ -5,11 +5,9 @@ import { sendRegistrationEmail } from "../services/email.service.js";
 
 export const userRegisterationController = async (req, res) => {
     const { email, password, name } = req.body;
-    console.log(req.body);
     const exists = await userModel.findOne({
         email: email
     });
-    console.log(exists);
     if (exists) {
         return res.status(422).json({
             message: "User already present",

@@ -14,6 +14,12 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: [true, "Name field is compulsary"]
     },
+    systemuser : {
+        type : Boolean,
+        default : false,
+        immutable : true,
+        select : false
+    },
     password: {
         type: String,
         required: [true, "Password field is required"],

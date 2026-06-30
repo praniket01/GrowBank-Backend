@@ -48,6 +48,29 @@ export const sendRegistrationEmail = async (userEmail, name) => {
                     <br></br>
                     <p>The Grow Bank Team</p>
                     `
-    await sendEmail(userEmail,subject,text,html);
+    await sendEmail(userEmail, subject, text, html);
 }
 
+const sendTransactionEmail = async (userEmail, name, amount, toAccount) => {
+    const subject = 'Update on your recent transactioin';
+    const text = `Dear ${name}, please note you have made ${amount} to ${toAccount}'s account`
+    const html = `<p> Hello ${name}</p><p>Thank You for Banking at Growbank</p>
+                    please note you have made ${amount} to ${toAccount}'s account
+                    <br></br>
+                    <p>The Grow Bank Team</p>
+                    `
+    await sendEmail(userEmail, subject, text, html);
+}
+
+export const sendTransactionFailEmail = async (userEmail, name, amount, toAccount) => {
+    const subject = 'Failure on your recent transactioin';
+    const text = `Dear ${name}, please note you have made ${amount} to ${toAccount}'s account`
+    const html = `<p> Hello ${name}</p><p>Thank You for Banking at Growbank</p>
+                    please note your transaction of ${amount} to ${toAccount}'s account is failed and amount has been reverted to your account
+                    <br></br>
+                    <p>The Grow Bank Team</p>
+                    `
+    await sendEmail(userEmail, subject, text, html);
+}
+
+export default sendTransactionEmail;
