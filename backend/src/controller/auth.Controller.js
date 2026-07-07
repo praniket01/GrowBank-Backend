@@ -33,12 +33,13 @@ export const userRegisterationController = async (req, res) => {
         },
         token
     });
-    await sendRegistrationEmail(user.email,user.name);
+    //await sendRegistrationEmail(user.email,user.name);
 
 }
 
 export const userLoginController = async (req, res) => {
     const { email, password } = req.body;
+    console.log(req.body);
     const exists = await userModel.findOne({
         email: email
     }).select("+password");
