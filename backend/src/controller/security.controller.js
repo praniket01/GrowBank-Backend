@@ -9,10 +9,65 @@ import accountModel from "../models/account.model.js";
 import mongoose from "mongoose";
 import ledgerModel from "../models/ledger.model.js";
 
+export const setTransactionPin = async (req, res, next) => {
+    try {
+        const { pin, confirmPin } = req.body;
+
+    if (!pin || !confirmPin) {
+        return res.status(400).json({
+            success: false,
+            message: "PIN and confirm PIN are required"
+        })
+    }
+
+    if (pin != confirmPin) {
+        return res.status(400).json({
+            success: false,
+            message: "PIN and confirm PIN do not match"
+        })
+    }
+
+    if (!/^\d{6}$/.test(pin)) {
+        return res.status(400).json({
+            success: false,
+            message: "PIN must be exactly 6 digits"
+        })
+    }
+
+    const user = await userModel.findById(req.user._id).select("+transactionPin");
+
+    if (!user) {
+        return res.status(400).json({
+            success: false,
+            message: "User not found"
+        })
+    }
+
+    if (user.transactionPin) {
+        return res.status(400).json({
+            success: false,
+            message: "Transaction pin already exists"
+        })
+    }
+
+    user.transactionPin = pin;
+
+    await user.save();
+
+    return res.status(200).json({
+        success: false,
+        message: "Pin saved successfully"
+    })
+    } catch (error) {
+        console.log(error);
+    }
+
+}
+
 export const verifyTransactionPin = async (req, res, next) => {
     try {
         const { pin } = req.body;
-        console.log("pin : ",pin);
+        console.log("pin : ", pin);
         if (!pin) {
             return res.status(400).json({
                 success: false,
@@ -20,10 +75,10 @@ export const verifyTransactionPin = async (req, res, next) => {
             })
         }
 
-        const userPresent =  await userModel.findById(req.user._id)
+        const userPresent = await userModel.findById(req.user._id)
             .select("+transactionPin");
 
-            
+
         if (!userPresent) {
             return res.status(400).json({
                 success: false,
@@ -100,12 +155,12 @@ export const verifyTransactionOtp = async (req, res, next) => {
             })
         }
 
-       
+
         const pendingTransfer = await pendingTransferModel.findOne({
             user: req.user._id
         });
 
-         console.log("Pending Transfer",pendingTransfer);
+        console.log("Pending Transfer", pendingTransfer);
         if (!pendingTransfer) {
             return res.status(404).json({
                 success: false,
@@ -121,7 +176,7 @@ export const verifyTransactionOtp = async (req, res, next) => {
             pendingTransfer.toAccount
         );
 
-        console.log("From accout : " ,fromUserAccount ,"To user account : ",toUserAccount);
+        console.log("From accout : ", fromUserAccount, "To user account : ", toUserAccount);
 
         if (!fromUserAccount || !toUserAccount) {
             return res.status(404).json({
