@@ -33,7 +33,7 @@ export const userRegisterationController = async (req, res) => {
         },
         token
     });
-    //await sendRegistrationEmail(user.email,user.name);
+    await sendRegistrationEmail(user.email,user.name);
 
 }
 

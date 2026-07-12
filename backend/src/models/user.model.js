@@ -1,6 +1,8 @@
 import mongoose from "mongoose";
 import bcrypt from "bcrypt"
 
+
+
 const userSchema = new mongoose.Schema({
     email: {
         type: String,
@@ -14,11 +16,11 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: [true, "Name field is compulsary"]
     },
-    systemuser : {
-        type : Boolean,
-        default : false,
-        immutable : true,
-        select : false
+    systemuser: {
+        type: Boolean,
+        default: false,
+        immutable: true,
+        select: false
     },
     password: {
         type: String,
@@ -26,25 +28,38 @@ const userSchema = new mongoose.Schema({
         minlength: [6, "Password should be of atleast length 6 letters"],
         select: false
     },
+    transactionPin: {
+        type: String,
+        select: false
+    },
 
 }, {
     timestamps: true
 })
 
-
 userSchema.pre("save", async function () {
-    console.log("Password before hashing:", this.password);
 
-    if (!this.isModified("password")) {
-        return;
+    if (this.isModified("password")) {
+        this.password = await bcrypt.hash(this.password, 10);
     }
 
-    this.password = await bcrypt.hash(this.password, 10);
+    if (this.isModified("transactionPin") && this.transactionPin) {
+        this.transactionPin = await bcrypt.hash(
+            this.transactionPin,
+            10
+        );
+    }
+
 });
 
 userSchema.methods.comparePassword = async function (password) {
     return await bcrypt.compare(password, this.password);
 }
+
+userSchema.methods.compareTransactionPin = async function (pin) {
+        console.log("From PIN : ",pin, "Compare with pin : ",this.transactionPin);
+        return await bcrypt.compare(pin, this.transactionPin)
+    }
 
 const userModel = mongoose.model("user", userSchema);
 

@@ -3,16 +3,96 @@ import ledgerModel from "../models/ledger.model.js";
 import accountModel from "../models/account.model.js";
 import mongoose from "mongoose";
 import sendTransactionEmail from "../services/email.service.js";
+import pendingTransferModel from "../models/pendingTransfer.model.js";
+
+export const initiateTransfer = async (
+  req,
+  res,
+  next
+) => {
+  try {
+
+    const {
+      fromAccount,
+      toAccount,
+      amount,
+      idempotencyKey,
+    } = req.body;
+
+    if (
+      !fromAccount ||
+      !toAccount ||
+      !amount ||
+      !idempotencyKey
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields",
+      });
+    }
+
+    const existing =
+      await pendingTransferModel.findOne({
+        idempotencyKey,
+      });
+
+    if (existing) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "Transfer already initiated",
+      });
+    }
+
+    await pendingTransferModel.deleteMany({
+      user: req.user._id,
+    });
+
+    //Finding the accounts id of from and to accounts
+    const fromUserId = await accountModel.findOne({
+        user : fromAccount
+    })
+
+    const toUserId = await accountModel.findOne({
+        user : toAccount
+    })
+
+    const pendingTransfer =
+      await pendingTransferModel.create({
+        user: req.user._id,
+        fromAccount : fromUserId._id,
+        toAccount : toUserId._id,
+        amount,
+        idempotencyKey,
+        expiresAt: new Date(
+          Date.now() + 10 * 60 * 1000
+        ),
+      });
+
+    return res.status(201).json({
+      success: true,
+      transferId: pendingTransfer._id,
+      message:
+        "Transfer initiated successfully",
+    });
+
+  } catch (err) {
+    next(err);
+  }
+};
 
 async function createTransaction(req, res) {
     //Request Validation
-    const { fromAccount, toAccount, amount, idempotencyKey } = req.body;
+    const { fromAccount, toAccount, amount, idempotencyKey } = await pendingTransferModel.findone({
+        user : req.user._id
+    });
 
     if (!fromAccount || !toAccount || !amount || !idempotencyKey) {
         return res.status(400).json({
             message: "Please enter all required fields"
         })
     }
+    
 
     const fromUserAccount = await accountModel.findOne({
         user : fromAccount
@@ -195,5 +275,7 @@ async function createInitialFunds(req, res) {
 
 
 }
+
+
 
 export {createTransaction,createInitialFunds};
