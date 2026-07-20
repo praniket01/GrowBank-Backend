@@ -65,7 +65,8 @@ export const userLoginController = async (req, res) => {
         user: {
             _id: exists._id,
             email: exists.email,
-            name: exists.name
+            name: exists.name,
+            hasTransactionPin : exists.hasTransactionPin
         },
         token
     })

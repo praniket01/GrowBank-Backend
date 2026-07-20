@@ -4,87 +4,174 @@ import accountModel from "../models/account.model.js";
 import mongoose from "mongoose";
 import sendTransactionEmail from "../services/email.service.js";
 import pendingTransferModel from "../models/pendingTransfer.model.js";
+import userModel from "../models/user.model.js";
 
 export const initiateTransfer = async (
-  req,
-  res,
-  next
+    req,
+    res,
+    next
 ) => {
-  try {
+    try {
 
-    const {
-      fromAccount,
-      toAccount,
-      amount,
-      idempotencyKey,
-    } = req.body;
+        const {
+            fromAccount,
+            toAccount,
+            amount,
+            idempotencyKey,
+        } = req.body;
 
-    if (
-      !fromAccount ||
-      !toAccount ||
-      !amount ||
-      !idempotencyKey
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "Missing required fields",
-      });
+        if (
+            !fromAccount ||
+            !toAccount ||
+            !amount ||
+            !idempotencyKey
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Missing required fields",
+            });
+        }
+
+        const existing =
+            await pendingTransferModel.findOne({
+                idempotencyKey,
+            });
+
+        if (existing) {
+            return res.status(409).json({
+                success: false,
+                message:
+                    "Transfer already initiated",
+            });
+        }
+
+        await pendingTransferModel.deleteMany({
+            user: req.user._id,
+        });
+
+        //Finding the accounts id of from and to accounts
+        const fromUserId = await accountModel.findOne({
+            user: fromAccount
+        })
+
+        const toUserId = await accountModel.findOne({
+            user: toAccount
+        })
+
+        const pendingTransfer =
+            await pendingTransferModel.create({
+                user: req.user._id,
+                fromAccount: fromUserId._id,
+                toAccount: toUserId._id,
+                amount,
+                idempotencyKey,
+                expiresAt: new Date(
+                    Date.now() + 10 * 60 * 1000
+                ),
+            });
+
+        return res.status(201).json({
+            success: true,
+            transferId: pendingTransfer._id,
+            message:
+                "Transfer initiated successfully",
+        });
+
+    } catch (err) {
+        next(err);
     }
-
-    const existing =
-      await pendingTransferModel.findOne({
-        idempotencyKey,
-      });
-
-    if (existing) {
-      return res.status(409).json({
-        success: false,
-        message:
-          "Transfer already initiated",
-      });
-    }
-
-    await pendingTransferModel.deleteMany({
-      user: req.user._id,
-    });
-
-    //Finding the accounts id of from and to accounts
-    const fromUserId = await accountModel.findOne({
-        user : fromAccount
-    })
-
-    const toUserId = await accountModel.findOne({
-        user : toAccount
-    })
-
-    const pendingTransfer =
-      await pendingTransferModel.create({
-        user: req.user._id,
-        fromAccount : fromUserId._id,
-        toAccount : toUserId._id,
-        amount,
-        idempotencyKey,
-        expiresAt: new Date(
-          Date.now() + 10 * 60 * 1000
-        ),
-      });
-
-    return res.status(201).json({
-      success: true,
-      transferId: pendingTransfer._id,
-      message:
-        "Transfer initiated successfully",
-    });
-
-  } catch (err) {
-    next(err);
-  }
 };
+
+export const getTransactionHistory = async (req, res, next) => {
+    try {
+        const user = req.user._id;
+        const page = Number(req.query.page) || 1;
+        const limit = Number(req.query.limit) || 10;
+
+        const skip = (page - 1) * limit;
+
+        if (!user) {
+            return res.status(400).json({
+                success: false,
+                message: "Please enter the user Id in the request"
+            });
+        }
+
+        const userAccount = await userModel.findById({
+            _id: user._id
+        });
+
+        if (!userAccount) {
+            return res.status(400).json({
+                success: false,
+                message: "User not Present"
+            });
+        }
+
+        const Account = await accountModel.findOne({
+            user: userAccount._id
+        });
+
+        if (!Account) {
+            return res.status(400).json({
+                success: false,
+                message: "Account not created"
+            });
+        }
+
+        const filter = {
+            $or: [
+                { fromAccount: Account._id },
+                { toAccount: Account._id },
+            ],
+        };
+
+        const total = await transactionModel.countDocuments(filter);
+
+        const transactions = await transactionModel
+            .find(filter)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .populate({
+                path: "fromAccount",
+                populate: {
+                    path: "user",
+                    select: "name email",
+                },
+            })
+            .populate({
+                path: "toAccount",
+                populate: {
+                    path: "user",
+                    select: "name email",
+                },
+            });
+
+        return res.status(200).json({
+            sucess : true,
+            message : "Transaction history fetched successfully",
+            data : {
+                transactions,
+                pagination : {
+                    page,
+                    limit,
+                    total,
+                    totalPages : Math.ceil(total/limit),
+                }
+            }
+        })
+
+
+    } catch (error) {
+        next(error);
+    }
+}
 
 async function createTransaction(req, res) {
     //Request Validation
     const { fromAccount, toAccount, amount, idempotencyKey } = await pendingTransferModel.findone({
-        user : req.user._id
+        user: req.user._id
     });
 
     if (!fromAccount || !toAccount || !amount || !idempotencyKey) {
@@ -92,14 +179,14 @@ async function createTransaction(req, res) {
             message: "Please enter all required fields"
         })
     }
-    
+
 
     const fromUserAccount = await accountModel.findOne({
-        user : fromAccount
+        user: fromAccount
     })
 
     const toUserAccount = await accountModel.findOne({
-        user : toAccount
+        user: toAccount
     })
 
     if (!fromUserAccount || !toUserAccount) {
@@ -166,30 +253,30 @@ async function createTransaction(req, res) {
         session.startTransaction();
 
         transaction = (await transactionModel.create([{
-            fromAccount:fromUserAccount._id,
-            toAccount:toUserAccount._id,
+            fromAccount: fromUserAccount._id,
+            toAccount: toUserAccount._id,
             amount,
             idempotencyKey,
-            status : "PENDING"
-        }],{ session } ))[0]
+            status: "PENDING"
+        }], { session }))[0]
 
         const debitLedgerEntry = await ledgerModel.create([{
-            account : fromUserAccount._id,
-            amount : amount,
-            transaction : transaction._id,
-            type : "DEBIT"
-        }], {session})
+            account: fromUserAccount._id,
+            amount: amount,
+            transaction: transaction._id,
+            type: "DEBIT"
+        }], { session })
 
         const creditLedgerEntry = await ledgerModel.create([{
-            account : toUserAccount._id,
-            amount : amount,
-            transaction : transaction._id,
-            type : "CREDIT"
-        }], {session})
+            account: toUserAccount._id,
+            amount: amount,
+            transaction: transaction._id,
+            type: "CREDIT"
+        }], { session })
 
         await transactionModel.findOneAndUpdate(
-            { _id : transaction._id},
-            { status : "COMPLETED"},
+            { _id: transaction._id },
+            { status: "COMPLETED" },
             { session }
         );
 
@@ -198,15 +285,15 @@ async function createTransaction(req, res) {
 
     } catch (error) {
         return res.status(400).json({
-            message : "Issue occured"
+            message: "Issue occured"
         })
     }
 
-    await sendTransactionEmail(req.user.email, req.user.name, amount ,toAccount);
+    await sendTransactionEmail(req.user.email, req.user.name, amount, toAccount);
 
     return res.status(201).json({
-        message : "Transaction completed successfully",
-        transaction : transaction
+        message: "Transaction completed successfully",
+        transaction: transaction
     });
 }
 
@@ -221,7 +308,7 @@ async function createInitialFunds(req, res) {
     }
 
     const toUserAccount = await accountModel.findOne({
-        user : toAccount,
+        user: toAccount,
     });
     if (!toUserAccount) {
         return res.status(400).json({
@@ -242,25 +329,25 @@ async function createInitialFunds(req, res) {
 
     const transaction = new transactionModel({
         fromAccount: fromUserAccount._id,
-        toAccount : toUserAccount._id,
+        toAccount: toUserAccount._id,
         amount,
         idempotencyKey,
         status: "PENDING"
     })
 
-    const debitLedgerEntry = await ledgerModel.create([ {
+    const debitLedgerEntry = await ledgerModel.create([{
         account: fromUserAccount._id,
         amount: amount,
         transaction: transaction._id,
         type: "DEBIT"
-    } ], { session })
+    }], { session })
 
-    const creditLedgerEntry = await ledgerModel.create([ {
+    const creditLedgerEntry = await ledgerModel.create([{
         account: toUserAccount._id,
         amount: amount,
         transaction: transaction._id,
         type: "CREDIT"
-    } ], { session })
+    }], { session })
 
     transaction.status = "COMPLETED"
     await transaction.save({ session })
@@ -276,6 +363,4 @@ async function createInitialFunds(req, res) {
 
 }
 
-
-
-export {createTransaction,createInitialFunds};
+export { createTransaction, createInitialFunds };

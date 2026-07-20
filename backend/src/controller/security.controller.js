@@ -51,7 +51,7 @@ export const setTransactionPin = async (req, res, next) => {
     }
 
     user.transactionPin = pin;
-
+    user.hasTransactionPin = true;
     await user.save();
 
     return res.status(200).json({

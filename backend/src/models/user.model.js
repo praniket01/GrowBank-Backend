@@ -16,6 +16,10 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: [true, "Name field is compulsary"]
     },
+    hasTransactionPin :{
+        type : Boolean,
+        default : false,
+    },
     systemuser: {
         type: Boolean,
         default: false,
